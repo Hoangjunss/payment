@@ -34,16 +34,29 @@ public class UserService implements CreateUserUseCase {
 
         if (status != null) {
             if ("PROCESSING".equals(status)) {
-                throw new ConcurrentRequestException("Request with this idempotency key is already being processed");
+                Long ttl = idempotencyService.getTtl(idempotencyKey);
+                long maxProcessingSeconds = idempotencyService.getProcessingTtl().toSeconds();
+                // If TTL is greater than the configured lock timeout (e.g. was 24h) or has no TTL (ttl <= 0),
+                // we treat it as stale and allow takeover.
+                if (ttl != null && (ttl > maxProcessingSeconds || ttl <= 0)) {
+                    log.warn("Stale PROCESSING lock detected for key: {} (TTL: {}s). Cleaning up and allowing takeover.", 
+                            idempotencyKey, ttl);
+                    idempotencyService.remove(idempotencyKey);
+                    status = null;
+                } else {
+                    throw new ConcurrentRequestException("Request with this idempotency key is already being processed");
+                }
             }
-            if (status.startsWith("userId:")) {
+            if (status != null && status.startsWith("userId:")) {
                 Long userId = Long.parseLong(status.substring(7));
                 log.info("Duplicate request for idempotencyKey: {}, returning existing user id: {}", idempotencyKey, userId);
                 return userRepositoryPort.findById(userId)
                         .orElseThrow(() -> new UserNotFoundException("User not found for cached ID: " + userId));
             }
-            // If the key is in some other state (like FAILED or invalid), we clean it up and proceed
-            idempotencyService.remove(idempotencyKey);
+            if (status != null) {
+                // If the key is in some other state (like FAILED or invalid), we clean it up and proceed
+                idempotencyService.remove(idempotencyKey);
+            }
         }
 
         // Attempt to acquire idempotency lock
