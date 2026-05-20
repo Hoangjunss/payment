@@ -1,5 +1,6 @@
 package com.paymentplatform.userservice.infrastructure.outbox;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -26,6 +27,8 @@ public class OutboxEntity {
     private String aggregateType;
     private String aggregateId;
     private String type;
+
+    @Column(columnDefinition = "TEXT")
     private String payload;
     private String topic;
 
