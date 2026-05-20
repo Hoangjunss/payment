@@ -10,5 +10,7 @@ RUN ./mvnw clean package -DskipTests
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-COPY --from=builder /build/target/*.jar app.jar
+RUN groupadd -r spring && useradd -r -g spring spring
+USER spring:spring
+COPY --from=builder --chown=spring:spring /build/target/*.jar app.jar
 ENTRYPOINT ["java", "-jar", "app.jar"]
